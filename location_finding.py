@@ -24,6 +24,16 @@ from oed.design import OED
 from estimators.mi import PriorContrastiveEstimation
 from estimators.bb_mi import InfoNCE, NWJ, BarberAgakov
 
+########### facial finding ########
+from plotters import plot_trace_2d, plot_trace_3d, plot_trace
+from PIL import Image
+### for eval()
+from experiment import VAEXperiment
+import models
+from torchvision.utils import save_image
+import yaml
+####################################
+
 
 mi_estimator_options = {
     "sPCE": PriorContrastiveEstimation,
@@ -70,7 +80,10 @@ class HiddenObjects(nn.Module):
         y = G(xi, theta) + Noise.
         """
         # two norm squared
-        sq_two_norm = (xi - theta).pow(2).sum(axis=-1)
+        self.norm = 2
+        mlflow.log_param('norm', self.norm)
+        sq_two_norm = (xi - theta).norm(p=self.norm, dim=-1).pow(2)
+        # sq_two_norm = (xi - theta).pow(2).sum(axis=-1)
         # add a small number before taking inverse (determines max signal)
         sq_two_norm_inverse = (self.max_signal + sq_two_norm).pow(-1)
         # sum over the K sources, add base signal and take log.
@@ -126,7 +139,7 @@ class HiddenObjects(nn.Module):
         self.design_net.train()
         return designs, observations
 
-    def eval(self, n_trace=3, theta=None, verbose=True):
+    def eval(self, n_trace=5, theta=None, verbose=True):
         """run the policy, print output and return it in a dataframe"""
         self.design_net.eval()
 
@@ -166,6 +179,62 @@ class HiddenObjects(nn.Module):
         return pd.concat(output), theta.cpu().numpy()
 
 
+    def eval_vae(self, vae_model, img_path, n_trace=5, theta=None, verbose=False):
+        """run the policy, print output and return it in a dataframe"""
+        vae_model.eval()
+        self.design_net.eval()
+
+        if theta is None:
+            theta = self.theta_prior.sample(torch.Size([n_trace]))
+        else:
+            theta = theta.unsqueeze(0).expand(n_trace, *theta.shape)
+            # dims: [n_trace * number of thetas given, shape of theta]
+            theta = theta.reshape(-1, *theta.shape[2:])
+
+        designs, observations = self.forward(theta)
+        output = []
+        # true_thetas = []
+
+        output_path = os.path.join(img_path, 'continuous_recurrent_output')
+        if not os.path.exists(output_path):
+            os.mkdir(output_path)
+        vae_model.eval()
+
+        for i in range(n_trace):
+            if verbose:
+                print("\nExample run {}".format(i + 1))
+                print(f"*True Theta: {theta[i].cpu()}*")
+            recon = vae_model.decode(theta[i].cpu())
+            save_image(recon, os.path.join(output_path, f"target_{i}.png"), normalize=True, value_range=(-1,1))
+            
+            run_xis = []
+            run_ys = []
+            # Print optimal designs, observations for given theta
+            for t in range(self.T):
+                xi = designs[t][i].detach().cpu().reshape(-1)
+                run_xis.append(xi)
+                y = observations[t][i].detach().cpu().item()
+                run_ys.append(y)
+                if verbose:
+                    print(f"xi{t + 1}: {xi},   y{t + 1}: {y}")
+                if t % 5 == 0:
+                    recon = vae_model.decode(xi)
+                    save_image(recon, os.path.join(output_path, f"target_{i}_recon_{t}.png"), normalize=True, value_range=(-1,1))
+                
+
+            run_df = pd.DataFrame(torch.stack(run_xis).numpy())
+            run_df.columns = [f"xi_{i}" for i in range(self.p)]
+            run_df["observations"] = run_ys
+            run_df["order"] = list(range(1, self.T + 1))
+            run_df["run_id"] = i + 1
+            output.append(run_df)
+
+            plot_trace(i, self.p, self.T, run_df, theta[i].numpy(), norm=self.norm, face_finding=True, face_folder=output_path)
+
+        self.design_net.train()
+        return pd.concat(output), theta.cpu().numpy()
+
+
 def single_run(
     seed,
     num_steps,
@@ -185,7 +254,14 @@ def single_run(
     reuse_history_encoder,
     critic_arch,
     mi_estimator,
+    ckpt_path,  # model checkpoint path
+    vaeconfig_path,  # yaml file of configuration of vae
 ):
+    with open(vaeconfig_path, 'r') as file:
+        try:
+            config = yaml.safe_load(file)
+        except yaml.YAMLError as exc:
+            print(exc)
 
     pyro.clear_param_store()
     seed = auto_seed(seed)
@@ -451,6 +527,29 @@ def single_run(
         mlflow.log_artifact(f"mlflow_outputs/designs_hist.csv", artifact_path="designs")
 
     ho_model.eval()
+
+    ml_info = mlflow.active_run().info
+    model_loc = f"mlruns/{ml_info.experiment_id}/{ml_info.run_id}/artifacts"
+
+    ##### load and log vae model
+    experiment = VAEXperiment.load_from_checkpoint(
+        ckpt_path, 
+        vae_model = models.vae_models[config['model_params']['name']](**config['model_params']),
+        params = config['exp_params']
+    )
+    vae_model = experiment.model.to(device)
+    mlflow.pytorch.log_model(vae_model.cpu(), "vae_model")
+    vae_model.eval()
+
+    xis, true_thetas = ho_model.eval_vae(vae_model, model_loc)
+    xi_theta_path = os.path.join(model_loc, 'xis_and_theta')
+    if not os.path.exists(xi_theta_path):
+        os.mkdir(xi_theta_path)
+    with open(os.path.join(xi_theta_path, 'xis.pkl'), 'wb') as handle:
+        pickle.dump(xis, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    with open(os.path.join(xi_theta_path, 'thetas.pkl'), 'wb') as handle:
+        pickle.dump(true_thetas, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
     # Store model and critic as artifacts
     print("Storing model to MlFlow... ", end="")
     mlflow.pytorch.log_model(ho_model.cpu(), "model")
@@ -486,6 +585,16 @@ if __name__ == "__main__":
     parser.add_argument("--critic-arch", default="attention", type=str)
     parser.add_argument("--mi-estimator", default="InfoNCE", type=str)
     parser.add_argument("--mlflow-experiment-name", default="locfin", type=str)
+    parser.add_argument(
+        "--ckpt-path", 
+        default="./vaelogs/VanillaVAE/version_0/checkpoints/epoch=73-step=35445.ckpt", 
+        type=str
+    )
+    parser.add_argument(
+        "--vaeconfig-path", 
+        default="./configs/vae.yaml", 
+        type=str
+    )
 
     args = parser.parse_args()
 
@@ -508,4 +617,6 @@ if __name__ == "__main__":
         reuse_history_encoder=args.reuse_history_encoder,
         critic_arch=args.critic_arch,
         mi_estimator=args.mi_estimator,
+        ckpt_path=args.ckpt_path,
+        vaeconfig_path=args.vaeconfig_path
     )
