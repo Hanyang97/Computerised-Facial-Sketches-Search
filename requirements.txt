@@ -5,3 +5,10 @@ pyro-ppl==1.6.0
 mlflow
 pandas
 numpy
+matplotlib
+imageio
+pytorch-lightning==1.5.6
+PyYAML==6.0
+tensorboard>=2.2.0
+scikit-learn
+torchsummary==1.5.1
