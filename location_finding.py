@@ -229,7 +229,7 @@ class HiddenObjects(nn.Module):
             run_df["run_id"] = i + 1
             output.append(run_df)
 
-            plot_trace(i, self.p, self.T, run_df, theta[i].numpy(), norm=self.norm, face_finding=True, face_folder=output_path)
+            plot_trace(i, self.p, self.T, run_df, theta[i].cpu().numpy(), norm=self.norm, face_finding=True, face_folder=output_path)
 
         self.design_net.train()
         return pd.concat(output), theta.cpu().numpy()

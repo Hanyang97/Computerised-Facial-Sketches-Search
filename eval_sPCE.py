@@ -142,7 +142,7 @@ if __name__ == "__main__":
         experiment_id=args.experiment_id,
         n_rollout=args.n_rollout,
         seed=args.seed,
-        num_inner_samples=int(1e5),
+        num_inner_samples=int(2e5),
         num_experiments_to_perform=args.num_experiments_to_perform,
         device=args.device,
     )
