@@ -81,7 +81,7 @@ class HiddenObjects(nn.Module):
         """
         # two norm squared
         self.norm = 2
-        mlflow.log_param('norm', self.norm)
+        # mlflow.log_param('norm', self.norm)
         sq_two_norm = (xi - theta).norm(p=self.norm, dim=-1).pow(2)
         # sq_two_norm = (xi - theta).pow(2).sum(axis=-1)
         # add a small number before taking inverse (determines max signal)
@@ -569,8 +569,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="iDAD: Hidden Object Detection.")
     parser.add_argument("--seed", default=-1, type=int)
     parser.add_argument("--num-steps", default=100000, type=int)
-    parser.add_argument("--num-negative-samples", default=2047, type=int)
-    parser.add_argument("--num-batch-samples", default=2048, type=int)
+    parser.add_argument("--num-negative-samples", default=599, type=int)
+    parser.add_argument("--num-batch-samples", default=600, type=int)
     parser.add_argument("--lr", default=0.0005, type=float)
     parser.add_argument("--gamma", default=0.8, type=float)
     parser.add_argument("--physical-dim", default=2, type=int)

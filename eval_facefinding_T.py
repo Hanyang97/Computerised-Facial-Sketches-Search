@@ -13,7 +13,7 @@ from experiment_tools.pyro_tools import auto_seed
 
 def plot_n_experiments(T_deploy, ho_model, vae_model, img_path, n_trace=5, theta=None, verbose=True):
     temp, ho_model.T = ho_model.T, T_deploy
-    ho_model.model()
+    # ho_model.model()
     ho_model.eval_vae(vae_model, img_path, n_trace, theta, verbose)
     ho_model.T = temp   # reset
 
