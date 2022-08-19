@@ -40,6 +40,25 @@ def evaluate_run(
     for t_exp in num_experiments_to_perform:
         # load model, set number of experiments
         trained_model = mlflow.pytorch.load_model(model_location, map_location=device)
+        ############# solely to correct previous model mistake, no need for future experiments #####
+        norm = trained_model.norm
+        def forward_map(self, xi, theta):
+            """Defines the forward map for the hidden object example
+            y = G(xi, theta) + Noise.
+            """
+            # two norm squared
+            self.norm = norm
+            # mlflow.log_param('norm', self.norm)
+            sq_two_norm = (xi - theta).norm(p=self.norm, dim=-1).pow(2)
+            # sq_two_norm = (xi - theta).pow(2).sum(axis=-1)
+            # add a small number before taking inverse (determines max signal)
+            sq_two_norm_inverse = (self.max_signal + sq_two_norm).pow(-1)
+            # sum over the K sources, add base signal and take log.
+            mean_y = torch.log(self.base_signal + sq_two_norm_inverse.sum(-1, keepdim=True))
+            return mean_y
+        import types
+        trained_model.forward_map = types.MethodType(forward_map, trained_model)
+        ##########################################################################
         if t_exp:
             trained_model.T = t_exp
         else:
@@ -142,7 +161,7 @@ if __name__ == "__main__":
         experiment_id=args.experiment_id,
         n_rollout=args.n_rollout,
         seed=args.seed,
-        num_inner_samples=int(2e5),
+        num_inner_samples=int(1e4),
         num_experiments_to_perform=args.num_experiments_to_perform,
         device=args.device,
     )

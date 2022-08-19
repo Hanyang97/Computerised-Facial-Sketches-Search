@@ -15,7 +15,7 @@ from experiment_tools.pyro_tools import auto_seed
 from experiment_tools.output_utils import get_mlflow_meta
 from estimators.mi import PriorContrastiveEstimation, NestedMonteCarloEstimation
 from location_finding import HiddenObjects
-from pharmacokinetic import Pharmacokinetic
+# from pharmacokinetic import Pharmacokinetic
 from neural.modules import LazyFn
 
 
@@ -62,16 +62,16 @@ def eval_from_source(
             T=num_experiments_to_perform[0],
         )
 
-    elif meta["model"] == "pharmacokinetic" or "pharmaco" in path_to_artifact:
-        design_dim = 1
-        model_instance = Pharmacokinetic(
-            design_net=LazyFn(
-                lambda *args: None, prototype=torch.ones(design_dim, device=device),
-            ),
-            T=num_experiments_to_perform[0],
-            theta_loc=torch.tensor([1, 0.1, 20], device=device).log(),
-            theta_covmat=torch.eye(3, device=device) * 0.05,
-        )
+    # elif meta["model"] == "pharmacokinetic" or "pharmaco" in path_to_artifact:
+    #     design_dim = 1
+    #     model_instance = Pharmacokinetic(
+    #         design_net=LazyFn(
+    #             lambda *args: None, prototype=torch.ones(design_dim, device=device),
+    #         ),
+    #         T=num_experiments_to_perform[0],
+    #         theta_loc=torch.tensor([1, 0.1, 20], device=device).log(),
+    #         theta_covmat=torch.eye(3, device=device) * 0.05,
+    #     )
     else:
         raise ValueError("Unknown model.")
 
@@ -124,7 +124,7 @@ if __name__ == "__main__":
     parser.add_argument("--path-to-artifact", type=str)
     parser.add_argument("--device", default="cuda", type=str)
     parser.add_argument("--seed", default=-1, type=int)
-    parser.add_argument("--num-inner-samples", default=int(5e5), type=int)
+    parser.add_argument("--num-inner-samples", default=int(5000), type=int)
     parser.add_argument("--num-experiments-to-perform", nargs="+", default=[10])
     args = parser.parse_args()
     args.num_experiments_to_perform = [

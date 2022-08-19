@@ -124,7 +124,7 @@ def plot_posterior_grid(limits, grid, pdf_post_list, designs, T_to_plot, mi_esti
 
 
 
-def plot_vae_decode(vae_model, embedding_list, dir, mi_estimator, T_list, index, type='True_Embedding'):
+def plot_vae_decode(vae_model, embedding_list, dir, mi_estimator, T_list, index, p, type='True_Embedding'):
     ncol = 4
     nrow = len(T_list) // ncol + 1
     fig, axs = plt.subplots(nrow, ncol, figsize=(6*ncol, 6*nrow), dpi=200)
@@ -148,7 +148,7 @@ def plot_vae_decode(vae_model, embedding_list, dir, mi_estimator, T_list, index,
         ax.remove()
     os.remove(tmp_img_dir)
     fig.suptitle(f'T=30 Example {mi_estimator} {type}', size=25)
-    plt.savefig(f"{dir}/2_dim_{mi_estimator}_{type}_{index}_progress.png")
+    plt.savefig(f"{dir}/{p}_dim_{mi_estimator}_{type}_{index}_progress.png")
 
 
 
@@ -290,5 +290,5 @@ if __name__ == "__main__":
 
         ho_model.T = temp
 
-    plot_vae_decode(vae_model, map_list+[true_theta for true_theta in theta], output_path, mi_estimator, T_to_plot, args.theta_index, type='MAP')
+    plot_vae_decode(vae_model, map_list+[true_theta for true_theta in theta], output_path, mi_estimator, T_to_plot, args.theta_index, p, type='MAP')
 
