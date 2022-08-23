@@ -22,6 +22,10 @@ import scipy.stats as st
 import argparse
 from plotters import plot_trace
 
+from pyro.infer import SVI, Trace_ELBO
+from oed.primitives import observation_sample, latent_sample, compute_design
+import pyro.distributions as dist
+
 
 def run_policy(implicit_model, theta=None, verbose=True):
     """
@@ -103,10 +107,8 @@ def plot_posterior_grid(limits, grid, pdf_post_list, designs, T_to_plot, mi_esti
         cfset = ax.contourf(xx, yy, pdf_post_list[i], cmap='Blues',levels=levels[:], zorder=10)
         ## Or kernel density estimate plot instead of the contourf plot
         #ax.imshow(np.rot90(f), cmap='Blues', extent=[xmin, xmax, ymin, ymax])
-
         # Contour plot
-        # cset = ax.contour(xx, yy, pdf_post_list[i], colors='k')
-        
+        cset = ax.contour(xx, yy, pdf_post_list[i], colors='k')
         # Label plot
         ax.clabel(cset, inline=1, fontsize=15)
         ax.set_xlabel('first dimension', size=15)
@@ -149,7 +151,7 @@ def plot_vae_decode(vae_model, embedding_list, dir, mi_estimator, T_list, index,
     for ax in axs[-1, len(embedding_list)%ncol:]:
         ax.remove()
     os.remove(tmp_img_dir)
-    fig.suptitle(f'T=30 Example {mi_estimator} {type}', size=25)
+    fig.suptitle(f'T={T_list[-1]} Example {mi_estimator} {type}', size=25)
     plt.savefig(f"{dir}/{p}_dim_{mi_estimator}_{type}_{index}_progress.png")
 
 
@@ -165,9 +167,9 @@ if __name__ == "__main__":
     parser.add_argument("--run-id", default="7d9ff16d7267491a8c88bbcf5f06d3ed", type=str)
     parser.add_argument("--T-to-plot", default=None, type=int)
     parser.add_argument("--theta-index", default=0, type=int)
-    parser.add_argument("--bin", default=50, type=int)
-    parser.add_argument("--limits", nargs='+', default=[-1.5, 1.5])
     parser.add_argument("--T-step", default=10, type=int)
+    parser.add_argument("--svi-lr", default=0.005, type=float)
+    parser.add_argument("--svi-steps", default=401, type=int)
 
     args = parser.parse_args()
 
@@ -215,26 +217,30 @@ if __name__ == "__main__":
 
     ####### true theta ###############
     ####### currently can only run one true theta, easy to improve code
-    theta_list = [torch.tensor([[0.5]*p]).to(args.device)]
+    # theta_list = [torch.tensor([[0.5]*p]).to(args.device)]
+    # theta_list = [torch.randn(1, p).to(args.device)]
+    theta_list = [torch.tensor([[0.4]*p]).to(args.device)]
     theta = theta_list[args.theta_index]
     #########################################
     map_list = []   # maximum a posterior
     f_list = []     # posterior pdf
-    limits = tuple([float(x) for x in args.limits])
-    limits = (-1.5, 1.5)    ####### important for posterior, lim
-    grid = np.mgrid[[slice(limits[0],limits[1],args.bin*1j) for i in range(p)]]
-    positions = np.vstack([grid[i].ravel() for i in range(p)])
+    # limits = tuple([float(x) for x in args.limits])
+    # limits = (-1.5, 1.5)    ####### important for posterior, lim
+    # grid = np.mgrid[[slice(limits[0],limits[1],args.bin*1j) for i in range(p)]]
+    # positions = np.vstack([grid[i].ravel() for i in range(p)])
     if args.T_to_plot is None:
         T_to_plot = [i for i in range(0, ho_model.T+1,args.T_step)]
     else:
-        T_to_plot =[i for i in range(0, args.T_to_plot+1, args.T_step)]
+        T_to_plot = [i for i in range(0, args.T_to_plot+1, args.T_step)]\
+    
+    
 
 
     # one experiment
     temp, ho_model.T = ho_model.T, T_to_plot[-1]
     designs, observations, _ = run_policy(ho_model, theta)
     output = []
-    output_path = os.path.join(dir, f'{p}_dim_{mi_estimator}_{ho_model.T}')
+    output_path = os.path.join(dir, f'{p}_dim_{mi_estimator}_{ho_model.T}_svi')
     if not os.path.exists(output_path):
         os.mkdir(output_path)
     recon = vae_model.decode(theta.squeeze().cpu())
@@ -268,27 +274,59 @@ if __name__ == "__main__":
         for t in range(ho_model.T):
             data_dict[f'xi{t+1}'] = designs[t].unsqueeze(0)
             data_dict[f'y{t+1}'] = observations[t].unsqueeze(0)
+        
+
         def model(data_dict):
-            with pyro.plate_stack("expand_theta_test", [theta.shape[0]]):
-                # condition on theta
-                return pyro.condition(ho_model.model, data=data_dict)()
+            ########################################################################
+            # Sample latent variables theta
+            ########################################################################
+            theta = latent_sample("theta", ho_model.theta_prior)
+            y_outcomes = []
+            xi_designs = []
+
+            # T-steps experiment
+            for t in range(ho_model.T):
+                ####################################################################
+                # Get a design xi; shape is [batch size x ho_model.n x ho_model.p]
+                ####################################################################
+                xi = compute_design(
+                    f"xi{t + 1}", ho_model.design_net.lazy(*zip(xi_designs, y_outcomes)), obs=data_dict[f"xi{t + 1}"]
+                )
+                ####################################################################
+                # Sample y at xi; shape is [batch size x 1]
+                ####################################################################
+                mean = ho_model.forward_map(xi, theta)
+                sd = ho_model.noise_scale
+                y = observation_sample(f"y{t + 1}", dist.Normal(mean, sd).to_event(1), obs=data_dict[f"y{t + 1}"])
+
+                ####################################################################
+                # Update history
+                ####################################################################
+                y_outcomes.append(y)
+                xi_designs.append(xi)
+
+            return theta, xi_designs, y_outcomes
+
+        autoguide_map = pyro.infer.autoguide.AutoDelta(model)
     
-        kernel = NUTS(model, target_accept_prob=0.9)        
-        mcmc = MCMC(kernel, num_samples=250*p, warmup_steps=200*p, num_chains=4)
+        def train(model, guide, lr=args.svi_lr, n_steps=args.svi_steps):
+            pyro.clear_param_store()
+            adam_params = {"lr": lr, 'betas': (0.95, 0.999)}
+            adam = pyro.optim.Adam(adam_params)
+            svi = SVI(model, guide, adam, loss=Trace_ELBO())
 
-        mcmc.run(data_dict)
-        print(mcmc.summary())
-        print(mcmc.diagnostics())
+            for step in range(n_steps):
+                loss = svi.step(data_dict)
+                if step % 50 == 0:
+                    print('[iter {}]  loss: {:.4f}'.format(step, loss))
+        
+        autoguide_map = pyro.infer.autoguide.AutoDelta(model)
+        train(model, autoguide_map)
 
-        posterior = mcmc.get_samples()['theta']
-        posterior = posterior.squeeze().cpu().numpy()
-        posterior_by_dim = [posterior[:, i] for i in range(p)]
-        values = np.vstack(posterior_by_dim)
-        kernel = st.gaussian_kde(values)
-        pdf = kernel(positions)
-        map_list.append(torch.tensor(positions[:, pdf.argmax()], dtype=torch.float32, device=args.device).reshape(-1))
-        f = np.reshape(pdf.T, grid[0].shape)
-        f_list.append(f)
+        MAP = autoguide_map.median(data_dict)["theta"]
+        print("Our MAP estimate of the theta is {}".format(MAP.cpu()))
+        MAP = MAP.squeeze().cpu()
+        map_list.append(MAP)
 
         ho_model.T = temp
 
