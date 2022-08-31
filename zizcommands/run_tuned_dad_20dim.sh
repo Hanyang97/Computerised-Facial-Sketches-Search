@@ -51,7 +51,7 @@ python3 location_finding.py \
     --num-sources 1 \
     --lr 5e-6 \
     --num-experiments 60 \
-    --encoding-dim 32 \
+    --encoding-dim 64 \
     --hidden-dim 512 \
     --mi-estimator sPCE \
     --device cuda:0 \
