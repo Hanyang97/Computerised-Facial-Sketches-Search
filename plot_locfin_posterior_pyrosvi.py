@@ -219,7 +219,7 @@ if __name__ == "__main__":
     ####### currently can only run one true theta, easy to improve code
     # theta_list = [torch.tensor([[0.5]*p]).to(args.device)]
     # theta_list = [torch.randn(1, p).to(args.device)]
-    theta_list = [torch.tensor([[0.4]*p]).to(args.device)]
+    theta_list = [torch.tensor([[0.5]*p]).to(args.device)]
     theta = theta_list[args.theta_index]
     #########################################
     map_list = []   # maximum a posterior

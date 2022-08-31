@@ -20,6 +20,11 @@ parser.add_argument('--config',  '-c',
                     metavar='FILE',
                     help =  'path to the config file',
                     default='configs/vae.yaml')
+####### for easy tuning #############
+###### may only be appropriate for running vanilla vae
+parser.add_argument("--latent-dim", default=0, type=int)
+parser.add_argument("--kld-weight", default=0, type=float)
+#####################################
 
 args = parser.parse_args()
 with open(args.filename, 'r') as file:
@@ -27,6 +32,14 @@ with open(args.filename, 'r') as file:
         config = yaml.safe_load(file)
     except yaml.YAMLError as exc:
         print(exc)
+
+####### for easy tuning #############
+###### may only be appropriate for running vanilla vae
+if args.latent_dim != 0:
+    config['model_params']['latent_dim'] = args.latent_dim
+if args.kld_weight != 0:
+    config['exp_params']['kld_weight'] = args.kld_weight
+##############################
 
 tb_logger =  TensorBoardLogger(save_dir=config['logging_params']['save_dir'],
                                name=config['model_params']['name'],)
