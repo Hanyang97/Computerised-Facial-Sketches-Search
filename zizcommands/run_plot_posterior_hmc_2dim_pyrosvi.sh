@@ -7,7 +7,7 @@
 # but we haven't read the manual closely to make sure it is what they do.
 
 # run dos2unix x.sh to avoid sbatch error
-# Usage: `sbatch /data/ziz/not-backed-up/haliu/idad/zizcommands/run_plot_posterior_hmc_2dim.sh`
+# Usage: `sbatch /data/ziz/not-backed-up/haliu/idad/zizcommands/run_plot_posterior_hmc_2dim_pyrosvi.sh`
 
 # These settings will give you plenty of emails, you probably want to change them or remove them.
 # If you want to try receiving emails enter your email address below.
@@ -42,7 +42,7 @@ source /data/ziz/not-backed-up/haliu/idad/new_dad_fs_venv/bin/activate #activate
 cd /data/ziz/not-backed-up/haliu/idad #cd into your folder
 
 echo 'Job started.'
-python3 plot_locfin_posterior_hmc_2dim.py \
+python3 plot_locfin_posterior_hmc_2dim_pyrosvi.py \
     --mi-estimator NWJ \
     --theta-index 2
 echo "Job completed." 
