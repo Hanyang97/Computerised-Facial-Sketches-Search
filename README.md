@@ -171,9 +171,11 @@ To plot MAP images for higher dimensions, execute the command
 ```bash
 python3 plot_locfin_posterior_pyrosvi.py \
     --seed 1 \
-    --run-id <run-id> \
+    --run-id <ID> \
     --T-to-plot 80 \
     --T-step 20 \
     --svi-lr 0.005 \
     --svi-steps 6201
 ```
+
+For more commands details, you can refer to `./zizcommands`.
