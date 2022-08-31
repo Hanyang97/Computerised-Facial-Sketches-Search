@@ -42,342 +42,138 @@ https://github.com/chris142857/dad_final
 
 
 ## Computing infrastructure requirements
-We have tested this codebase on Linux (Ubuntu x86_64) and MacOS (Big Sur v11.2.3) with Python 3.8.
-To train iDAD networks, we recommend the use of a GPU. We used one GeForce RTX 3090 GPU on a machine with 126 GiB of CPU memory and 40 CPU cores.
+We have tested this codebase on Linux (Ubuntu x86_64) with Python 3.8.
+To train DAD and iDAD networks, we recommend the use of a GPU. We used one GeForce RTX 2080Ti GPU on a machine with 11 GiB of GPU memory.
 
 ## Installation
-1. Ensure that Python and `conda` are installed.
-1. Create and activate a new `conda` virtual environment as follows
+1. Ensure that Python and `venv` are installed.
+1. Create and activate a new `venv` virtual environment as follows
 ```bash
-conda create -n idad_code
-conda activate idad_code
+python3 -m venv cfs_venv
+source cfs_venv/bin/activate
 ```
-1. Install the correct version of PyTorch, following the instructions at [pytorch.org](https://pytorch.org/).
-   For our experiments we used `torch==1.8.0` with CUDA version 11.1.
-1. Install the remaining package requirements using `pip install -r requirements.txt`.
-1. Install the torchsde package from its repository: `pip install git+https://github.com/google-research/torchsde.git`.
+1. Install the package requirements using `pip install -r requirements.txt`.
+
+## Dataset
+To download the dataset, use `sh get_dataset.sh`.
 
 ## MLFlow
 We use `mlflow` to log metric and store network parameters. Each experiment run is stored in
 a directory `mlruns` which will be created automatically. Each experiment is assigned a
-numerical `<ID>` and each run gets a unique `<HASH>`. The iDAD networks will be saved in
-`./mlruns/<ID>/<HASH>/artifacts`, which will be printed at the end of each training run.
+numerical `<ID>` and each run gets a unique `<HASH>`. The DAD and iDAD networks will be saved in
+`./mlruns/<ID>/<HASH>/artifacts`, which will be printed at the end of each training run. 
+We can also check 5 examples of simulations in `./mlruns/<ID>/<HASH>/artifacts`.
+
+## Tensorboard
+To log VAEs, we use tensorboard.
+
+## VAE
+To train VAE, change the yaml in `./configs` folder. Note we only tested the `vae.yaml` file. 
+If other vaes do not work, please refer to `https://github.com/AntixK/PyTorch-VAE`. 
+You may need to check the `vae_run` file (I added latent_dim and kld_weight arguments) 
+and `dataset.py` file (I added my own dataloader) if you use the default configs.
+```bash
+python3 vae_run.py \
+    -c configs/vae.yaml \
+    --latent-dim 50 \
+    --kld-weight 0.00005
+```
 
 ## Location Finding Experiment
 
-To train an iDAD network with the InfoNCE bound to locate 2 sources in 2D, using the approach in the paper, execute the command
+To train a DAD network without attention, execute the command
 ```bash
 python3 location_finding.py \
-    --num-steps 100000 \
-    --num-experiments=10 \
+    --num-steps 10000 \
     --physical-dim 2 \
-    --num-sources 2 \
-    --lr 0.0005 \
-    --num-experiments 10 \
+    --num-sources 1 \
+    --lr 1e-5 \
+    --num-experiments <10 or 30 or 50> \
+    --encoding-dim 64 \
+    --hidden-dim 512 \
+    --mi-estimator sPCE \
+    --device cuda:0 \
+    --design-arch sum \
+    --mlflow-experiment-name locfin \
+    --ckpt-path <vaelog model checkpoint path> \
+    --vaeconfig-path <vaelog model config path>
+```
+
+To train a DAD network with attention, execute the command
+```bash
+python3 location_finding.py \
+    --num-steps 10000 \
+    --physical-dim 2 \
+    --num-sources 1 \
+    --lr 1e-5 \
+    --num-experiments 50 \
+    --encoding-dim 64 \
+    --hidden-dim 512 \
+    --mi-estimator sPCE \
+    --device cuda:0 \
+    --mlflow-experiment-name locfin \
+    --ckpt-path <vaelog model checkpoint path> \
+    --vaeconfig-path <vaelog model config path>
+```
+
+To train an iDAD network with the InfoNCE bound, execute the command
+```bash
+python3 location_finding.py \
+    --num-steps 20000 \
+    --physical-dim 2 \
+    --num-sources 1 \
+    --lr 5e-5 \
+    --num-experiments 50 \
     --encoding-dim 64 \
     --hidden-dim 512 \
     --mi-estimator InfoNCE \
-    --device <DEVICE>
+    --device cuda:0 \
+    --mlflow-experiment-name locfin \
+    --ckpt-path <vaelog model checkpoint path> \
+    --vaeconfig-path <vaelog model config path>
 ```
 
-To train an iDAD network with the NWJ bound, using the approach in the paper, execute the command
-```bash
-python3 location_finding.py \
-    --num-steps 100000 \
-    --num-experiments=10 \
-    --physical-dim 2 \
-    --num-sources 2 \
-    --lr 0.0005 \
-    --num-experiments 10 \
-    --encoding-dim 64 \
-    --hidden-dim 512 \
-    --mi-estimator NWJ \
-    --device <DEVICE>
-```
-
-To run the static MINEBED baseline, use the following
-```bash
-python3 location_finding.py \
-    --num-steps 100000 \
-    --physical-dim 2 \
-    --num-sources 2 \
-    --lr 0.0001 \
-    --num-experiments 10 \
-    --encoding-dim 8 \
-    --hidden-dim 512 \
-    --design-arch static \
-    --critic-arch cat \
-    --mi-estimator NWJ \
-    --device <DEVICE>
-```
-
-To run the static SG-BOED baseline, use the following
-```bash
-python3 location_finding.py \
-    --num-steps 100000 \
-    --physical-dim 2 \
-    --num-sources 2 \
-    --lr 0.0005 \
-    --num-experiments 10 \
-    --encoding-dim 8 \
-    --hidden-dim 512 \
-    --design-arch static \
-    --critic-arch cat \
-    --mi-estimator InfoNCE \
-    --device <DEVICE>
-```
-
-To run the adaptive (explicit likelihood) DAD baseline, use the following
-```bash
-python3 location_finding.py \
-    --num-steps 100000 \
-    --physical-dim 2 \
-    --num-sources 2 \
-    --lr 0.0005 \
-    --num-experiments 10 \
-    --encoding-dim 32 \
-    --hidden-dim 512 \
-    --mi-estimator sPCE \
-    --design-arch sum \
-    --device <DEVICE>
-```
-
-To evaluate the resulting networks eun the following command
-```bash
-python3 eval_sPCE.py --experiment-id <ID>
-```
-
-To evaluate a random design baseline (requires no pre-training):
-```bash
-python3 baselines_locfin_nontrainable.py \
-    --policy random \
-    --physical-dim 2 \
-    --num-experiments-to-perform 5 10 \
-    --device <DEVICE>
-```
-
-To run the variational baseline (note: it takes a very long time), run:
-```bash
-python3 baselines_locfin_variational.py \
-    --num-histories 128 \
-    --num-experiments 10 \
-    --physical-dim 2 \
-    --lr 0.001 \
-    --num-steps 5000\
-    --device <DEVICE>
-```
-Copy `path_to_artifact` and pass it to the evaluation script:
-```bash
-python3 eval_sPCE_from_source.py \
-    --path-to-artifact <path_to_artifact> \
-    --num-experiments-to-perform 5 10 \
-    --device <DEVICE>
-```
-
-## Pharmacokinetic Experiment
-
-To train an iDAD network with the InfoNCE bound, using the approach in the paper, execute the command
-```bash
-python3 pharmacokinetic.py \
-    --num-steps 100000 \
-    --lr 0.0001 \
-    --num-experiments 5 \
-    --encoding-dim 32 \
-    --hidden-dim 512 \
-    --mi-estimator InfoNCE \
-    --device <DEVICE>
-```
-
-To train an iDAD network with the NWJ bound, using the approach in the paper, execute the command
-```bash
-python3 pharmacokinetic.py \
-    --num-steps 100000 \
-    --lr 0.0001 \
-    --num-experiments 5 \
-    --encoding-dim 32 \
-    --hidden-dim 512 \
-    --mi-estimator NWJ \
-    --gamma 0.5 \
-    --device <DEVICE>
-```
-
-To run the static MINEBED baseline, use the following
-```bash
-python3 pharmacokinetic.py \
-    --num-steps 100000 \
-    --lr 0.001 \
-    --num-experiments 5 \
-    --encoding-dim 8 \
-    --hidden-dim 512 \
-    --design-arch static \
-    --critic-arch cat \
-    --mi-estimator NWJ \
-    --device <DEVICE>
-```
-
-To run the static SG-BOED baseline, use the following
-```bash
-python3 pharmacokinetic.py \
-    --num-steps 100000 \
-    --lr 0.0005 \
-    --num-experiments 5 \
-    --encoding-dim 8 \
-    --hidden-dim 512 \
-    --design-arch static \
-    --critic-arch cat \
-    --mi-estimator InfoNCE \
-    --device <DEVICE>
-```
-
-To run the adaptive (explicit likelihood) DAD baseline, use the following
-```bash
-python3 pharmacokinetic.py \
-    --num-steps 100000 \
-    --lr 0.0001 \
-    --num-experiments 5 \
-    --encoding-dim 32 \
-    --hidden-dim 512 \
-    --mi-estimator sPCE \
-    --design-arch sum \
-    --device <DEVICE>
-```
-
-To evaluate the resulting networks run the following command
-```bash
-python3 eval_sPCE.py --experiment-id <ID>
-```
-
-To evaluate a random design baseline (requires no pre-training):
-```bash
-python3 baselines_pharmaco_nontrainable.py \
-    --policy random \
-    --num-experiments-to-perform 5 10 \
-    --device <DEVICE>
-```
-
-To evaluate an equal interval baseline (requires no pre-training):
-```bash
-python3 baselines_pharmaco_nontrainable.py \
-    --policy equal_interval \
-    --num-experiments-to-perform 5 10 \
-    --device <DEVICE>
-```
-
-To run the variational baseline (note: it takes a very long time), run:
-```bash
-python3 baselines_pharmaco_variational.py \
-    --num-histories 128 \
-    --num-experiments 10 \
-    --lr 0.001 \
-    --num-steps 5000 \
-    --device <DEVICE>
-```
-Copy `path_to_artifact` and pass it to the evaluation script:
-```bash
-python3 eval_sPCE_from_source.py \
-    --path-to-artifact <path_to_artifact> \
-    --num-experiments-to-perform 5 10 \
-    --device <DEVICE>
-```
-
-
-## SIR experiment
-
-For the SIR experiments, please first generate an initial training set and a test set:
-```bash
-python3 epidemic_simulate_data.py \
-    --num-samples=100000 \
-    --device <DEVICE>
-```
-
-
-To train an iDAD network with the InfoNCE bound, using the approach in the paper, execute the command
-```bash
-python3 epidemic.py \
-    --num-steps 100000 \
-    --num-experiments 5 \
-    --lr 0.0005 \
-    --hidden-dim 512 \
-    --encoding-dim 32 \
-    --mi-estimator InfoNCE \
-    --design-transform ts \
-    --device <DEVICE>
-```
 To train an iDAD network with the NWJ bound, execute the command
 ```bash
-python3 epidemic.py \
-    --num-steps 100000 \
-    --num-experiments 5 \
-    --lr 0.0005 \
+python3 location_finding.py \
+    --num-steps 50000 \
+    --physical-dim 2 \
+    --num-sources 1 \
+    --lr 1e-5 \
+    --num-experiments 50 \
+    --encoding-dim 64 \
     --hidden-dim 512 \
-    --encoding-dim 32 \
     --mi-estimator NWJ \
-    --design-transform ts \
-    --device <DEVICE>
+    --device cuda:0 \
+    --mlflow-experiment-name locfin \
+    --ckpt-path <vaelog model checkpoint path> \
+    --vaeconfig-path <vaelog model config path>
 ```
 
-To run the static SG-BOED baseline, run
+To evaluate all the resulting networks in the `experiment-id`, execute the command
 ```bash
-python3 epidemic.py \
-    --num-steps 100000 \
-    --num-experiments 5 \
-    --lr 0.005 \
-    --hidden-dim 512 \
-    --encoding-dim 32 \
-    --design-arch static \
-    --critic-arch cat \
-    --design-transform iid \
-    --mi-estimator InfoNCE \
-    --device <DEVICE>
+python3 eval_sPCE.py --experiment-id <ID>
 ```
 
-To run the static MINEBED baseline, run
-```bash
-python3 epidemic.py \
-    --num-steps 100000 \
-    --num-experiments 5 \
-    --lr 0.001 \
-    --hidden-dim 512 \
-    --encoding-dim 32 \
-    --design-arch static \
-    --critic-arch cat \
-    --design-transform iid \
-    --mi-estimator NWJ \
-    --device <DEVICE>
+To plot the 2 dimensional search with HMC and MAP by pyro.svi, (need update run_id in `plot_locfin_posterior_hmc_2dim_pyrosvi.py`) execute the command
+```
+python3 plot_locfin_posterior_hmc_2dim_pyrosvi.py \
+    --mi-estimator <infoNCE, NWJ, PCE or PCE_Attention> \
+    --theta-index 2
 ```
 
-To train a critic with random designs (to evaluate the random design baseline):
-```bash
-python3 epidemic.py \
-    --num-steps 100000 \
-    --num-experiments 5 \
-    --lr 0.005 \
-    --hidden-dim 512 \
-    --encoding-dim 32 \
-    --design-arch random \
-    --critic-arch cat \
-    --design-transform iid \
-    --device <DEVICE>
+To plot the 2 dimensional search with HMC and MAP by critics (grid), (need update run_id in `plot_locfin_posterior_2dim.py`) execute the command
+```
+python3 plot_locfin_posterior_2dim.py 
 ```
 
-To train a critic with equal interval designs, which is then used to evaluate the equal interval baseline, run the following
+To plot MAP images for higher dimensions, execute the command
 ```bash
-python3 epidemic.py \
-    --num-steps 100000 \
-    --num-experiments 5 \
-    --lr 0.001 \
-    --hidden-dim 512 \
-    --encoding-dim 32 \
-    --design-arch equal_interval \
-    --critic-arch cat \
-    --design-transform iid \
-    --device <DEVICE>
-```
-
-
-Finally, to evaluate the different methods, run
-```bash
-python3 eval_epidemic.py \
-    --experiment-id <ID> \
-    --device <DEVICE>
+python3 plot_locfin_posterior_pyrosvi.py \
+    --seed 1 \
+    --run-id <run-id> \
+    --T-to-plot 80 \
+    --T-step 20 \
+    --svi-lr 0.005 \
+    --svi-steps 6201
 ```
