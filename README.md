@@ -1,5 +1,16 @@
-# Implicit Deep Adaptive Design (iDAD)
-This code supports the NeurIPS paper 'Implicit Deep Adaptive Design: Policy-Based Experimental Design without Likelihoods'.
+# Computerised Facial Sketches Search Using (Implicit) Deep Adaptive Design
+This code supports the Master's Dissertation 'Guided Computerised Facial Sketches Search Using Deep Adaptive Design' in Oxford Statistics Department 2022.
+
+For DAD and iDAD, please refer to the following
+
+```
+@article{foster2021deep,
+  title={Deep Adaptive Design: Amortizing Sequential Bayesian Experimental Design},
+  author={Foster, Adam and Ivanova, Desi R and Malik, Ilyas and Rainforth, Tom},
+  journal={arXiv preprint arXiv:2103.02438},
+  year={2021}
+}
+```
 
 ```
 @article{ivanova2021implicit,
@@ -9,6 +20,27 @@ This code supports the NeurIPS paper 'Implicit Deep Adaptive Design: Policy-Base
   year={2021}
 }
 ```
+
+The VAE models are adapted from the PyTorch VAE Repository with some changes. We only used Vanilla VAEs
+
+```
+@misc{Subramanian2020,
+  author = {Subramanian, A.K},
+  title = {PyTorch-VAE},
+  year = {2020},
+  publisher = {GitHub},
+  journal = {GitHub repository},
+  howpublished = {\url{https://github.com/AntixK/PyTorch-VAE}}
+}
+```
+
+Some plotter functions are adapted from last year's dissertation
+
+```
+https://github.com/chris142857/dad_final
+```
+
+
 ## Computing infrastructure requirements
 We have tested this codebase on Linux (Ubuntu x86_64) and MacOS (Big Sur v11.2.3) with Python 3.8.
 To train iDAD networks, we recommend the use of a GPU. We used one GeForce RTX 3090 GPU on a machine with 126 GiB of CPU memory and 40 CPU cores.
