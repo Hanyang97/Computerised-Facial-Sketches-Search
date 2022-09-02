@@ -178,4 +178,26 @@ python3 plot_locfin_posterior_pyrosvi.py \
     --svi-steps 6201
 ```
 
+To run NUTS and evaluate posterior, execute the command
+```bash
+python3 mcmc.py \
+    --seed 1 \
+    --run-id <ID> \
+    --T-to-plot 60 \
+    --nsample 1000 \
+    --nwarmup 400 \
+    --nchain 4 \
+    --plothist 1
+```
+
+To run Laplace Approximation and evaluate posterior, execute the command
+```bash
+python3 laplace.py \
+    --seed 1 \
+    --run-id <ID> \
+    --T-to-plot 30 \
+    --svi-lr 0.01 \
+    --svi-steps 2801
+```
+
 For more commands details, you can refer to `./zizcommands`.
